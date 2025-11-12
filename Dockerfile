@@ -20,12 +20,13 @@ RUN mkdir /tmp/bin && \
     python -m venv /tmp/pyenv && \
     . /tmp/pyenv/bin/activate && \
     pip install --no-cache-dir apprise==${APPRISE_VERSION} pyinstaller && \
-    pyinstaller --onefile --distpath /tmp/bin /tmp/pyenv/bin/apprise
+    pyinstaller --collect-all apprise --onefile --distpath /tmp/bin /tmp/pyenv/bin/apprise
 
 FROM alpine:3.22.2 AS final
 
 RUN apk add --no-cache sqlite postgresql-client tzdata
 
 COPY --from=build --chmod=0555 /tmp/bin/* /usr/local/bin/
+COPY --chmod=0555 scripts/entrypoint.sh /usr/local/bin/
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

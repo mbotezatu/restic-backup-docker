@@ -5,10 +5,10 @@ set -eu
 RESTIC_INIT_ARGS="${RESTIC_INIT_ARGS:-}"
 
 init_restic_repo() {
-    repo cat config >/dev/null 2>&1 && {
+    if restic cat config >/dev/null 2>&1; then
         printf "Restic repository already initialized.\n"
-        exit 1
-    }
+        return 0
+    fi
 
     printf "Initializing restic repository.\n"
     (
