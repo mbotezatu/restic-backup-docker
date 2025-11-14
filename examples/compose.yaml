@@ -1,0 +1,66 @@
+name: "restic-backup"
+
+x-restic-backup-image: &restic-backup-image "ghcr.io/mbotezatu/restic-backup:latest"
+
+services:
+  restic-backup:
+    image: *restic-backup-image
+    restart: "unless-stopped"
+    container_name: "restic-backup"
+    hostname: "restic-backup"
+    secrets:
+      - source: "restic-password"
+        target: "/run/secrets/restic-password"
+        mode: 0400
+      - source: "rclone-config"
+        target: "/run/secrets/rclone.conf"
+        mode: 0400
+    configs:
+      - source: "restic-backup-cron"
+        target: "/etc/supercronic/crontab"
+        mode: 0400
+      - source: "restic-ignore"
+        target: "/etc/restic/.resticignore"
+        mode: 0444
+      - source: "backup-vaultwarden-script"
+        target: "/usr/local/bin/backup-vaultwarden.sh"
+        mode: 0555
+    volumes_from:
+      - "container:vaultwarden:rw"
+    environment:
+      TZ: "Europe/Madrid"
+      RESTIC_REPOSITORY: "rclone:kdrive:backups/homelab"
+      RESTIC_PASSWORD_FILE: "/run/secrets/restic-password"
+      RCLONE_CONFIG: "/run/secrets/rclone.conf"
+      APPRISE_URL: "${APPRISE_URL:?}"
+
+secrets:
+  restic-password:
+    environment: "RESTIC_PASSWORD"
+  rclone-config:
+    environment: "RCLONE_CONFIG"
+
+configs:
+  backup-vaultwarden-script:
+    content: |
+      #!/bin/sh
+      set -eu
+      TMP=$$(mktemp)
+      cleanup(){ rm -f /data/db.sqlite3.backup "$$TMP"; }
+      trap cleanup EXIT
+      if {
+          sqlite3 -readonly /data/db.sqlite3 "VACUUM INTO '/data/db.sqlite3.backup'" \
+          && restic backup --host vaultwarden --exclude-file /etc/restic/.resticignore /data
+      } >"$$TMP" 2>&1; then NOTIF=success; else NOTIF=failure; fi
+      apprise -vv -n "$$NOTIF" -t 'Vaultwarden Backup' -b "$$(cat "$$TMP")" "$$APPRISE_URL"
+  restic-backup-cron:
+    content: |
+      0 1 * * * /usr/local/bin/backup-vaultwarden.sh
+      0 2 * * * restic forget --prune --keep-daily 7 --keep-weekly 4 --keep-monthly 12 --keep-yearly 1
+      0 3 * * * restic check
+  restic-ignore:
+    content: |
+      /data/*
+      !/data/attachments/
+      !/data/db.sqlite3.backup
+      !/data/rsa_key*
