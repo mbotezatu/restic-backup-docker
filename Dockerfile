@@ -1,4 +1,4 @@
-FROM --platform=$BUILDPLATFORM alpine:3.22.2 AS build
+FROM --platform=$BUILDPLATFORM alpine:3.23.0 AS build
 ARG TARGETOS
 ARG TARGETARCH
 
@@ -22,7 +22,7 @@ RUN mkdir /tmp/bin && \
     pip install --no-cache-dir apprise==${APPRISE_VERSION} pyinstaller && \
     pyinstaller --collect-all apprise --onefile --distpath /tmp/bin /tmp/pyenv/bin/apprise
 
-FROM alpine:3.22.2 AS final
+FROM alpine:3.23.0 AS final
 
 RUN apk add --no-cache sqlite postgresql-client tzdata
 
